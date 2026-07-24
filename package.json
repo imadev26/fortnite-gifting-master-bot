@@ -1,0 +1,21 @@
+{
+  "name": "fortnite-bot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "deploy": "node src/deploy-commands.js",
+    "telegram": "node src/telegram.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.18.1",
+    "discord.js": "^14.27.0",
+    "dotenv": "^17.4.2",
+    "fnbr": "^4.2.1",
+    "telegraf": "^4.16.3"
+  }
+}

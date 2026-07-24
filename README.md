@@ -47,7 +47,7 @@ Open [.env](file:///C:/Users/Imad%20ADAOUMOUM/.gemini/antigravity-ide/scratch/fo
 DISCORD_TOKEN=your_discord_bot_token_here
 CLIENT_ID=your_discord_client_id_here
 GUILD_ID=your_discord_server_id_here   # (Optional: adding this makes commands load instantly for testing)
-FORTNITE_API_KEY=facaf529-4263-4fdb-ab96-37d19afaf2b9
+FORTNITE_API_KEY=######################
 ```
 
 ### 4. Deploy Commands & Launch

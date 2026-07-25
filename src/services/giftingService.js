@@ -62,6 +62,29 @@ class GiftingService {
   }
 
   /**
+   * Set Support-A-Creator Code across ALL saved Epic Games accounts
+   */
+  static async setAffiliateNameAll(affiliateCode = 'xzerk') {
+    const accounts = EpicAuthService.getAccounts();
+    if (!accounts.length) {
+      return { success: false, error: 'No linked accounts found.' };
+    }
+
+    const results = [];
+    for (const acc of accounts) {
+      const res = await this.setAffiliateName(acc, affiliateCode);
+      results.push({
+        accountName: acc.displayName,
+        success: res.success,
+        code: affiliateCode,
+        error: res.error,
+      });
+    }
+
+    return { success: true, results, code: affiliateCode };
+  }
+
+  /**
    * Check Gifting Eligibility between Sender and Recipient for an Offer
    */
   static async checkEligibility(accessToken, senderAccountId, receiverAccountId, offerId) {

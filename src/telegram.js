@@ -957,38 +957,6 @@ bot.action(/^syncsrc_(.+)$/, async (ctx) => {
   const session = getSession(ctx.from.id);
   session.syncSource = sourceAcc;
   session.step = 'sync_target';
-
-  await ctx.answerCbQuery(`Source: ${sourceAcc.displayName}`);
-
-  const targetAccounts = accounts.filter((a) => a.accountId !== accountId);
-  const buttons = targetAccounts.map((acc) => [
-    Markup.button.callback(`🎯 Target: ${acc.displayName}`, `synctgt_${acc.accountId}`)
-  ]);
-  buttons.push([Markup.button.callback('❌ Cancel', 'gift_cancel')]);
-
-  return ctx.editMessageText(
-    `🔄 *BULK FRIEND SYNC*\n\n` +
-    `📋 Source: *${sourceAcc.displayName}*\n\n` +
-    `Step 2/2 — *Select TARGET account* (which will send friend requests):`,
-    {
-      parse_mode: 'Markdown',
-      ...Markup.inlineKeyboard(buttons)
-    }
-  );
-});
-
-bot.action(/^synctgt_(.+)$/, async (ctx) => {
-  const accountId = ctx.match[1];
-  const accounts = EpicAuthService.getAccounts();
-  const targetAcc = accounts.find((a) => a.accountId === accountId);
-  const session = getSession(ctx.from.id);
-
-  if (!session || !session.syncSource) {
-    await ctx.answerCbQuery('Session expired.');
-    return ctx.editMessageText('❌ Session expired. Use /syncfriends to start again.');
-  }
-
-  session.syncTarget = targetAcc;
   session.step = 'sync_confirm';
 
   const { syncSource } = session;

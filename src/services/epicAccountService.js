@@ -254,6 +254,70 @@ class EpicAccountService {
       return { success: false, error: 'Bulk friend sync failed.' };
     }
   }
+
+  /**
+   * Check & accept all incoming pending friend requests for an account
+   */
+  static async acceptPendingFriends(account) {
+    try {
+      const loginRes = await EpicAuthService.loginWithDeviceAuth(account);
+      if (!loginRes.success) return { success: false, error: loginRes.error };
+
+      const { accessToken, accountId } = loginRes;
+
+      // Get raw friends list
+      const friendsRes = await axios.get(
+        `https://friends-public-service-prod.ol.epicgames.com/friends/api/public/friends/${accountId}`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+
+      const rawFriends = friendsRes.data || [];
+      const pendingInbound = rawFriends.filter(
+        (f) => f.status === 'PENDING' && f.direction === 'INBOUND'
+      );
+
+      if (!pendingInbound.length) {
+        return { success: true, acceptedCount: 0, acceptedNames: [], accountName: account.displayName };
+      }
+
+      // Batch-resolve display names of senders
+      const pendingIds = pendingInbound.map((f) => f.accountId);
+      const query = pendingIds.map((id) => `accountId=${id}`).join('&');
+      const namesRes = await axios.get(
+        `https://account-public-service-prod.ol.epicgames.com/account/api/public/account?${query}`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+
+      const resolvedMap = new Map((namesRes.data || []).map((u) => [u.id, u.displayName]));
+      const acceptedNames = [];
+
+      // Accept each pending request
+      for (const p of pendingInbound) {
+        try {
+          await axios.post(
+            `https://friends-public-service-prod.ol.epicgames.com/friends/api/v1/${accountId}/friends/${p.accountId}`,
+            {},
+            { headers: { Authorization: `Bearer ${accessToken}` } }
+          );
+          const name = resolvedMap.get(p.accountId) || p.accountId;
+          acceptedNames.push(name);
+        } catch (e) {
+          console.error(`Error accepting friend request from ${p.accountId}:`, e.message);
+        }
+        await new Promise((r) => setTimeout(r, 250));
+      }
+
+      return {
+        success: true,
+        acceptedCount: acceptedNames.length,
+        acceptedNames,
+        accountName: account.displayName,
+      };
+    } catch (error) {
+      console.error('Error accepting pending friends:', error.message);
+      return { success: false, error: 'Could not process pending friend requests.' };
+    }
+  }
 }
 
 module.exports = EpicAccountService;

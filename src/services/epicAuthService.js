@@ -28,6 +28,8 @@ class EpicAuthService {
    */
   static getAccounts() {
     try {
+      const dir = path.dirname(ACCOUNTS_FILE);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
       if (!fs.existsSync(ACCOUNTS_FILE)) {
         fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify([]));
         return [];

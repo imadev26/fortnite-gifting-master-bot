@@ -1067,6 +1067,75 @@ bot.action('sync_confirm_start', async (ctx) => {
   );
 });
 
+
+// ─────────────────────────────────────────────
+// 12. /accept (Auto-Accept Pending Friend Requests)
+// ─────────────────────────────────────────────
+const handleAcceptPending = async (ctx) => {
+  const accounts = EpicAuthService.getAccounts();
+  if (!accounts.length) {
+    return ctx.reply('❌ No linked Epic Games account found! Use /login first.');
+  }
+
+  await ctx.reply('⏳ Checking & accepting pending friend requests across all accounts...');
+
+  let totalAccepted = 0;
+  const reports = [];
+
+  for (const acc of accounts) {
+    const res = await EpicAccountService.acceptPendingFriends(acc);
+    if (res.success) {
+      if (res.acceptedCount > 0) {
+        totalAccepted += res.acceptedCount;
+        reports.push(`👤 *${res.accountName}*: Accepted *${res.acceptedCount}* friend(s) (${res.acceptedNames.join(', ')})`);
+      } else {
+        reports.push(`👤 *${res.accountName}*: No pending friend requests.`);
+      }
+    } else {
+      reports.push(`👤 *${res.accountName}*: ❌ ${res.error}`);
+    }
+  }
+
+  if (totalAccepted > 0) {
+    return ctx.replyWithMarkdown(
+      `🎉 *ACCEPTED ${totalAccepted} NEW FRIEND REQUEST(S)!*\n\n` +
+      reports.join('\n\n') + '\n\n' +
+      `_Note: Epic Games requires 48 hours after friend request acceptance before gifting._`
+    );
+  }
+
+  return ctx.replyWithMarkdown(
+    `🤝 *AUTO-ACCEPT FRIEND REQUESTS*\n\n` +
+    reports.join('\n\n') + '\n\n' +
+    `_No new pending friend requests found right now._`
+  );
+};
+
+bot.command('accept', handleAcceptPending);
+bot.command('acceptfriends', handleAcceptPending);
+bot.hears(/(🤝\s*)?\/(accept|acceptfriends)/i, handleAcceptPending);
+
+// ─────────────────────────────────────────────
+// AUTOMATIC BACKGROUND AUTO-ACCEPT INTERVAL (Every 5 mins)
+// ─────────────────────────────────────────────
+const AUTO_ACCEPT_INTERVAL = 5 * 60 * 1000;
+
+setInterval(async () => {
+  try {
+    const accounts = EpicAuthService.getAccounts();
+    if (!accounts.length) return;
+
+    for (const acc of accounts) {
+      const res = await EpicAccountService.acceptPendingFriends(acc);
+      if (res.success && res.acceptedCount > 0) {
+        console.log(`🤝 [AUTO-ACCEPT] Automatically accepted ${res.acceptedCount} friend request(s) for ${res.accountName}:`, res.acceptedNames.join(', '));
+      }
+    }
+  } catch (err) {
+    console.error('Error in background auto-accept interval:', err.message);
+  }
+}, AUTO_ACCEPT_INTERVAL);
+
 bot
   .launch()
   .then(() => console.log('🚀 Telegram Bot is live and listening!'))

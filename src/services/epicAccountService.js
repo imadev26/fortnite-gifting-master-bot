@@ -120,7 +120,7 @@ class EpicAccountService {
 
       // Send Friend Request
       await axios.post(
-        `https://friends-public-service-prod.ol.epicgames.com/friends/api/v1/public/friends/${accountId}/${targetAccountId}`,
+        `https://friends-public-service-prod.ol.epicgames.com/friends/api/v1/${accountId}/friends/${targetAccountId}`,
         {},
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );

@@ -1115,26 +1115,7 @@ bot.command('accept', handleAcceptPending);
 bot.command('acceptfriends', handleAcceptPending);
 bot.hears(/(🤝\s*)?\/(accept|acceptfriends)/i, handleAcceptPending);
 
-// ─────────────────────────────────────────────
-// AUTOMATIC BACKGROUND AUTO-ACCEPT INTERVAL (Every 5 mins)
-// ─────────────────────────────────────────────
-const AUTO_ACCEPT_INTERVAL = 5 * 60 * 1000;
 
-setInterval(async () => {
-  try {
-    const accounts = EpicAuthService.getAccounts();
-    if (!accounts.length) return;
-
-    for (const acc of accounts) {
-      const res = await EpicAccountService.acceptPendingFriends(acc);
-      if (res.success && res.acceptedCount > 0) {
-        console.log(`🤝 [AUTO-ACCEPT] Automatically accepted ${res.acceptedCount} friend request(s) for ${res.accountName}:`, res.acceptedNames.join(', '));
-      }
-    }
-  } catch (err) {
-    console.error('Error in background auto-accept interval:', err.message);
-  }
-}, AUTO_ACCEPT_INTERVAL);
 
 bot
   .launch()

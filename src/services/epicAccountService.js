@@ -265,9 +265,9 @@ class EpicAccountService {
 
       const { accessToken, accountId } = loginRes;
 
-      // Get raw friends list
+      // Get raw friends list (include pending requests)
       const friendsRes = await axios.get(
-        `https://friends-public-service-prod.ol.epicgames.com/friends/api/public/friends/${accountId}`,
+        `https://friends-public-service-prod.ol.epicgames.com/friends/api/public/friends/${accountId}?includePending=true`,
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
 

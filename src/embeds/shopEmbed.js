@@ -1,4 +1,4 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+﻿const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 const RARITY_COLORS = {
   legendary: 0xea8427,
@@ -28,7 +28,7 @@ function createShopPageEmbed(shopData, pageIndex = 0, itemsPerPage = 5) {
     return {
       embeds: [
         new EmbedBuilder()
-          .setTitle('🛒 Fortnite Item Shop')
+          .setTitle('ðŸ›’ Fortnite Item Shop')
           .setDescription('No shop entries available right now.')
           .setColor(0xff0000)
           .setTimestamp(),
@@ -45,10 +45,10 @@ function createShopPageEmbed(shopData, pageIndex = 0, itemsPerPage = 5) {
   const shopDate = shopData.date ? shopData.date.split('T')[0] : 'Today';
 
   const embed = new EmbedBuilder()
-    .setTitle('🛒 Fortnite Item Shop')
-    .setDescription(`Currently **${entries.length}** offers in shop • Date: **${shopDate}**`)
+    .setTitle('ðŸ›’ Fortnite Item Shop')
+    .setDescription(`Currently **${entries.length}** offers in shop â€¢ Date: **${shopDate}**`)
     .setColor(0x00d2ff)
-    .setFooter({ text: `Page ${currentPage + 1} of ${totalPages} • Fortnite-API.com` })
+    .setFooter({ text: `Page ${currentPage + 1} of ${totalPages} â€¢ Fortnite-API.com` })
     .setTimestamp();
 
   pageEntries.forEach((entry, idx) => {
@@ -57,19 +57,19 @@ function createShopPageEmbed(shopData, pageIndex = 0, itemsPerPage = 5) {
     let itemDesc = '';
     let iconUrl = null;
 
-    if (entry.items && entry.items.length > 0) {
-      const mainItem = entry.items[0];
+    if (entry.brItems && entry.brItems.length > 0) {
+      const mainItem = entry.brItems[0];
       itemName = mainItem.name || itemName;
       itemRarity = mainItem.rarity?.displayValue || mainItem.rarity?.value || itemRarity;
       itemDesc = mainItem.description ? `*${mainItem.description}*\n` : '';
       iconUrl = mainItem.images?.featured || mainItem.images?.icon || mainItem.images?.smallIcon;
     } else if (entry.tracks && entry.tracks.length > 0) {
       const track = entry.tracks[0];
-      itemName = `🎵 ${track.title || 'Jam Track'} (${track.artist || ''})`;
+      itemName = `ðŸŽµ ${track.title || 'Jam Track'} (${track.artist || ''})`;
       itemRarity = 'Jam Track';
       iconUrl = track.albumArt;
     } else if (entry.bundle) {
-      itemName = `📦 ${entry.bundle.name}`;
+      itemName = `ðŸ“¦ ${entry.bundle.name}`;
       itemRarity = 'Bundle';
       iconUrl = entry.bundle.image;
     }
@@ -80,7 +80,7 @@ function createShopPageEmbed(shopData, pageIndex = 0, itemsPerPage = 5) {
 
     embed.addFields({
       name: `${start + idx + 1}. ${itemName} (${itemRarity})${section}`,
-      value: `${itemDesc}💰 Price: ${originalPrice}**${price} V-Bucks**`,
+      value: `${itemDesc}ðŸ’° Price: ${originalPrice}**${price} V-Bucks**`,
       inline: false,
     });
 
@@ -92,12 +92,12 @@ function createShopPageEmbed(shopData, pageIndex = 0, itemsPerPage = 5) {
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(`shop_prev_${currentPage}`)
-      .setLabel('◀ Previous')
+      .setLabel('â—€ Previous')
       .setStyle(ButtonStyle.Primary)
       .setDisabled(currentPage === 0),
     new ButtonBuilder()
       .setCustomId(`shop_next_${currentPage}`)
-      .setLabel('Next ▶')
+      .setLabel('Next â–¶')
       .setStyle(ButtonStyle.Primary)
       .setDisabled(currentPage >= totalPages - 1)
   );
@@ -109,3 +109,4 @@ module.exports = {
   createShopPageEmbed,
   getRarityColor,
 };
+

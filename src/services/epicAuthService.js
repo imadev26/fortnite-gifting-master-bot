@@ -11,6 +11,12 @@ const BASIC_AUTH = Buffer.from(`${EPIC_CLIENT_ID}:${EPIC_CLIENT_SECRET}`).toStri
 
 class EpicAuthService {
   /**
+   * In-memory token cache: Map<accountId, { accessToken, expiresAt }>
+   * Epic tokens are valid for 8 hours — we cache them to avoid redundant logins.
+   */
+  static tokenCache = new Map();
+
+  /**
    * Returns the official Epic Games login authorization URL
    */
   static getAuthUrl() {
@@ -109,6 +115,23 @@ class EpicAuthService {
       }
       this.saveAccounts(accounts);
 
+      // Automatically set Creator Code 'xzerk' for any newly added Epic account
+      try {
+        await axios.post(
+          `https://fortnite-public-service-prod11.ol.epicgames.com/fortnite/api/game/v2/profile/${accountId}/client/SetAffiliateName?rvn=-1`,
+          { affiliateName: 'xzerk' },
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+        console.log(`🌟 Automatically applied Creator Code 'xzerk' for new account: ${displayName}`);
+      } catch (sacErr) {
+        console.warn(`Could not auto-apply SAC 'xzerk' for ${displayName}:`, sacErr.message);
+      }
+
       return { success: true, account: newAccount, accessToken };
     } catch (error) {
       console.error('Error creating deviceAuth:', error.response?.data || error.message);
@@ -120,9 +143,21 @@ class EpicAuthService {
   }
 
   /**
-   * Log in an existing saved account using deviceAuth credentials
+   * Log in an existing saved account using deviceAuth credentials.
+   * Returns cached token if still valid (Epic tokens last 8 hours).
    */
   static async loginWithDeviceAuth(account) {
+    // Check cache first
+    const cached = this.tokenCache.get(account.accountId);
+    if (cached && Date.now() < cached.expiresAt) {
+      return {
+        success: true,
+        accessToken: cached.accessToken,
+        displayName: cached.displayName || account.displayName,
+        accountId: account.accountId,
+      };
+    }
+
     try {
       const params = new URLSearchParams();
       params.append('grant_type', 'device_auth');
@@ -141,14 +176,25 @@ class EpicAuthService {
         }
       );
 
-      return {
+      const result = {
         success: true,
         accessToken: response.data.access_token,
         displayName: response.data.displayName || account.displayName,
         accountId: response.data.account_id,
       };
+
+      // Cache token — expires in 8h, invalidate 5min early to be safe
+      this.tokenCache.set(account.accountId, {
+        accessToken: result.accessToken,
+        displayName: result.displayName,
+        expiresAt: Date.now() + (8 * 60 * 60 * 1000) - (5 * 60 * 1000),
+      });
+
+      return result;
     } catch (error) {
       console.error(`Login failed for ${account.displayName}:`, error.response?.data || error.message);
+      // Clear stale cache on auth failure
+      this.tokenCache.delete(account.accountId);
       return {
         success: false,
         error: error.response?.data?.errorMessage || 'DeviceAuth token expired or invalid',
@@ -158,3 +204,4 @@ class EpicAuthService {
 }
 
 module.exports = EpicAuthService;
+

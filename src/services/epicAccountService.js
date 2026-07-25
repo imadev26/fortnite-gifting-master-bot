@@ -62,7 +62,8 @@ class EpicAccountService {
 
       const stats = response.data?.profileChanges?.[0]?.profile?.stats?.attributes || {};
       const giftHistory = stats.gift_history || {};
-      const giftsSentCount = giftHistory.num_sent || 0;
+      // Epic API returns num_sent directly, or we count sentTo array entries as fallback
+      const giftsSentCount = giftHistory.num_sent ?? giftHistory.sentTo?.length ?? 0;
       const maxDailyGifts = 5;
       const remainingGifts = Math.max(0, maxDailyGifts - giftsSentCount);
 
@@ -131,6 +132,126 @@ class EpicAccountService {
         success: false,
         error: error.response?.data?.errorMessage || 'Friend request failed',
       };
+    }
+  }
+
+  /**
+   * Fetch the full friends list for an account (accepted friends only)
+   * Returns: { success, friends: [{accountId, displayName}] }
+   */
+  static async getFriendsList(account) {
+    try {
+      const loginRes = await EpicAuthService.loginWithDeviceAuth(account);
+      if (!loginRes.success) return { success: false, error: loginRes.error };
+
+      const { accessToken, accountId } = loginRes;
+
+      // Step 1: Get list of friend accountIds
+      const friendsRes = await axios.get(
+        `https://friends-public-service-prod.ol.epicgames.com/friends/api/public/friends/${accountId}`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+
+      const rawFriends = friendsRes.data || [];
+      const acceptedIds = rawFriends
+        .filter((f) => f.status === 'ACCEPTED')
+        .map((f) => f.accountId);
+
+      if (!acceptedIds.length) {
+        return { success: true, friends: [] };
+      }
+
+      // Step 2: Batch-resolve display names (max 100 per request)
+      const batchSize = 100;
+      const friends = [];
+
+      for (let i = 0; i < acceptedIds.length; i += batchSize) {
+        const batch = acceptedIds.slice(i, i + batchSize);
+        const query = batch.map((id) => `accountId=${id}`).join('&');
+        const namesRes = await axios.get(
+          `https://account-public-service-prod.ol.epicgames.com/account/api/public/account?${query}`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+        const resolved = namesRes.data || [];
+        resolved.forEach((u) => {
+          if (u && u.id && u.displayName) {
+            const ext = u.externalAuths || {};
+            const keys = Object.keys(ext);
+            let platform = 'Epic';
+            let icon = '🖥️';
+            if (keys.includes('psn')) { platform = 'PSN'; icon = '🎮'; }
+            else if (keys.includes('xbl')) { platform = 'Xbox'; icon = '💚'; }
+            else if (keys.includes('nintendo') || keys.includes('switch')) { platform = 'Switch'; icon = '🔴'; }
+            friends.push({ accountId: u.id, displayName: u.displayName, platform, icon });
+          }
+        });
+      }
+
+      // Sort alphabetically
+      friends.sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''));
+
+      return { success: true, friends };
+    } catch (error) {
+      console.error('Error fetching friends list:', error.response?.data || error.message);
+      return { success: false, error: 'Could not fetch friends list from Epic Games' };
+    }
+  }
+
+  /**
+   * Bulk Sync / Transfer Friends List from sourceAccount to targetAccount
+   * Sends Epic friend requests from targetAccount to every friend of sourceAccount
+   */
+  static async syncFriendsList(sourceAccount, targetAccount, onProgress) {
+    try {
+      const sourceRes = await this.getFriendsList(sourceAccount);
+      if (!sourceRes.success) return { success: false, error: `Could not fetch friends from ${sourceAccount.displayName}` };
+
+      const friends = sourceRes.friends || [];
+      if (!friends.length) return { success: false, error: `${sourceAccount.displayName} has no friends to transfer.` };
+
+      const targetLogin = await EpicAuthService.loginWithDeviceAuth(targetAccount);
+      if (!targetLogin.success) return { success: false, error: `Login failed for target ${targetAccount.displayName}` };
+
+      const { accessToken, accountId: targetAccountId } = targetLogin;
+
+      let sentCount = 0;
+      let failCount = 0;
+      const total = friends.length;
+
+      for (let i = 0; i < total; i++) {
+        const friend = friends[i];
+
+        if (onProgress) {
+          try {
+            await onProgress(i + 1, total, friend.displayName, sentCount, failCount);
+          } catch (_) {}
+        }
+
+        try {
+          await axios.post(
+            `https://friends-public-service-prod.ol.epicgames.com/friends/api/v1/${targetAccountId}/friends/${friend.accountId}`,
+            {},
+            { headers: { Authorization: `Bearer ${accessToken}` } }
+          );
+          sentCount++;
+        } catch (e) {
+          failCount++;
+        }
+
+        await new Promise((r) => setTimeout(r, 250));
+      }
+
+      return {
+        success: true,
+        total,
+        sentCount,
+        failCount,
+        source: sourceAccount.displayName,
+        target: targetAccount.displayName,
+      };
+    } catch (error) {
+      console.error('Error in syncFriendsList:', error.message);
+      return { success: false, error: 'Bulk friend sync failed.' };
     }
   }
 }

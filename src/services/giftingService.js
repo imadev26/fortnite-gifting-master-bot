@@ -91,11 +91,12 @@ class GiftingService {
         offerId,
         purchaseQuantity: 1,
         currency: 'MtxCurrency',
+        currencySubType: '',
         currencySubGame: 'Client',
         expectedTotalPrice: parseInt(expectedTotalPrice, 10),
         gameContext: '',
         receiverAccountIds: [receiverAccountId],
-        giftWrapTemplateId: 'GiftBox:GB_Default',
+        giftWrapTemplateId: '',
         personalMessage,
       };
 
@@ -116,12 +117,26 @@ class GiftingService {
       return { success: false, error: 'Gifting transaction completed with unexpected response structure.' };
     } catch (error) {
       console.error('Error sending GiftCatalogEntry:', error.response?.data || error.message);
-      const msg = error.response?.data?.errorMessage || error.response?.data?.error || error.message;
+      const errData = error.response?.data || {};
+      const msg = errData.errorMessage || errData.error || error.message || '';
+      const errCode = errData.errorCode || '';
+
+      let friendlyError = msg;
+      if (errCode.includes('item_already_owned') || msg.toLowerCase().includes('already own') || msg.toLowerCase().includes('already_owned')) {
+        friendlyError = `⚠️ Recipient **${recipientUsername || 'user'}** already owns this item!`;
+      } else if (msg.includes('id_invalid') || errCode.includes('id_invalid') || msg.toLowerCase().includes('friend')) {
+        friendlyError = '⚠️ Must be friends with recipient for at least 48 hours to send gifts!';
+      } else if (errCode.includes('mfa_enabled') || msg.toLowerCase().includes('mfa')) {
+        friendlyError = '🔒 Sender account must have MFA enabled on Epic Games to send gifts.';
+      } else if (msg.toLowerCase().includes('limit') || errCode.includes('limit')) {
+        friendlyError = '📊 Sender has reached the maximum limit of 5 gifts per 24 hours.';
+      } else if (errCode.includes('currency') || errCode.includes('mtx') || msg.toLowerCase().includes('currency') || msg.toLowerCase().includes('not enough') || msg.toLowerCase().includes('balance')) {
+        friendlyError = '❌ Solde V-Bucks غير كافي فـ الحساب (Insufficient V-Bucks balance)!';
+      }
+
       return {
         success: false,
-        error: msg.includes('errors.com.epicgames.fortnite.id_invalid')
-          ? 'Must be friends with recipient for at least 48 hours to send gifts!'
-          : msg,
+        error: friendlyError,
       };
     }
   }
@@ -138,6 +153,22 @@ class GiftingService {
 
     const { accessToken, accountId: senderAccountId } = loginRes;
 
+    // Automatically set fixed Support-A-Creator code 'xzerk' before gifting
+    try {
+      await axios.post(
+        `https://fortnite-public-service-prod11.ol.epicgames.com/fortnite/api/game/v2/profile/${senderAccountId}/client/SetAffiliateName?rvn=-1`,
+        { affiliateName: 'xzerk' },
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+    } catch (_) {
+      // Ignore minor SAC warnings so gifting always proceeds
+    }
+
     // 2. Resolve recipient username
     const recipientRes = await this.resolveDisplayName(recipientUsername, accessToken);
     if (!recipientRes.success) {
@@ -153,13 +184,15 @@ class GiftingService {
     }
 
     const entries = shopRes.data?.entries || [];
-    const query = itemQuery.toLowerCase();
+    const rawQuery = itemQuery.toLowerCase().trim();
+    const cleanQuery = rawQuery.replace(/^[^a-z0-9]+/i, '').trim();
 
     const matchedEntry = entries.find((e) => {
-      if (e.offerId && (e.offerId.toLowerCase().includes(query) || e.devName?.toLowerCase().includes(query))) return true;
-      if (e.items && e.items.some((item) => item.name && item.name.toLowerCase().includes(query))) return true;
-      if (e.tracks && e.tracks.some((t) => t.title && t.title.toLowerCase().includes(query))) return true;
-      if (e.bundle && e.bundle.name && e.bundle.name.toLowerCase().includes(query)) return true;
+      if (e.offerId && (e.offerId.toLowerCase() === rawQuery || e.offerId.toLowerCase() === cleanQuery || e.offerId.toLowerCase().includes(cleanQuery))) return true;
+      if (e.devName && (e.devName.toLowerCase().includes(rawQuery) || e.devName.toLowerCase().includes(cleanQuery))) return true;
+      if (e.brItems && e.brItems.some((item) => item.name && (item.name.toLowerCase().includes(rawQuery) || item.name.toLowerCase().includes(cleanQuery)))) return true;
+      if (e.tracks && e.tracks.some((t) => t.title && (t.title.toLowerCase().includes(rawQuery) || t.title.toLowerCase().includes(cleanQuery)))) return true;
+      if (e.bundle && e.bundle.name && (e.bundle.name.toLowerCase().includes(rawQuery) || e.bundle.name.toLowerCase().includes(cleanQuery))) return true;
       return false;
     });
 
@@ -169,7 +202,7 @@ class GiftingService {
 
     const offerId = matchedEntry.offerId;
     const price = matchedEntry.finalPrice || matchedEntry.regularPrice || 0;
-    const itemName = matchedEntry.items?.[0]?.name || matchedEntry.tracks?.[0]?.title || matchedEntry.bundle?.name || itemQuery;
+    const itemName = matchedEntry.brItems?.[0]?.name || matchedEntry.tracks?.[0]?.title || matchedEntry.bundle?.name || itemQuery;
 
     // 4. Send Gift
     const giftRes = await this.giftCatalogEntry({
@@ -195,3 +228,4 @@ class GiftingService {
 }
 
 module.exports = GiftingService;
+

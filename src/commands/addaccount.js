@@ -26,7 +26,7 @@ module.exports = {
             '3. Run `/addaccount code: <your_copied_code>` to complete device auth setup.'
         )
         .setColor(0x00d2ff)
-        .setFooter({ text: 'DeviceAuth is stored securely f data/accounts.json' })
+        .setFooter({ text: 'DeviceAuth is stored securely in data/accounts.json' })
         .setTimestamp();
 
       return interaction.reply({ embeds: [embed], ephemeral: true });
